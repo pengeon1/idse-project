@@ -4,6 +4,7 @@
   python train.py --stage 2 --cache cache --out runs/s2 --epochs 300 --skip_attn cbam
 """
 import argparse
+import csv
 import json
 import os
 import time
@@ -103,6 +104,11 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     best = -1.0
+    history_csv = os.path.join(args.out, "history.csv")
+    history_fields = ["epoch", "train_loss"] + (["val_WT"] if args.stage == 1 else ["val_WT", "val_TC", "val_ET"]) + ["time_sec"]
+    with open(history_csv, "w", newline="") as f:
+        csv.writer(f).writerow(history_fields)
+
     for ep in range(args.epochs):
         model.train()
         t0, run = time.time(), 0.0
@@ -123,8 +129,15 @@ def main():
         d = validate(model, va, dev, args.stage)
         score = d.mean().item()
         names = ["WT"] if args.stage == 1 else ["WT", "TC", "ET"]
+        ep_time = time.time() - t0
         print(f"ep {ep+1:3d}  loss {run/len(tr):.4f}  val " +
-              " ".join(f"{n} {v:.4f}" for n, v in zip(names, d.tolist())) + f"  ({time.time()-t0:.0f}s)")
+              " ".join(f"{n} {v:.4f}" for n, v in zip(names, d.tolist())) + f"  ({ep_time:.0f}s)")
+
+        # Log epoch to CSV
+        row = [ep + 1, run / len(tr)] + [round(v, 4) for v in d.tolist()] + [round(ep_time, 1)]
+        with open(history_csv, "a", newline="") as f:
+            csv.writer(f).writerow(row)
+
         if score > best:
             best = score
             torch.save({"model": model.state_dict(), "args": vars(args), "val": d.tolist()},
