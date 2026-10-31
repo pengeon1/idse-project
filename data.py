@@ -46,18 +46,22 @@ def preprocess(raw_root, out_dir, max_cases=None):
                 v = np.where(nz, (v - mu) / sd, 0.0)
             chans.append(v)
         else:
-            np.save(os.path.join(out_dir, f"{case}_img.npy"), np.stack(chans).astype(np.float16))
             sp = _find(cd, case, "seg")
-            if sp is not None:
-                np.save(os.path.join(out_dir, f"{case}_lab.npy"),
-                        np.asarray(nib.load(sp).dataobj).astype(np.uint8))
+            if sp is None:
+                print("skip (no ground truth seg mask)", case)
+                continue
+            np.save(os.path.join(out_dir, f"{case}_img.npy"), np.stack(chans).astype(np.float16))
+            np.save(os.path.join(out_dir, f"{case}_lab.npy"),
+                    np.asarray(nib.load(sp).dataobj).astype(np.uint8))
             print("done", case)
             continue
         print("skip (missing modality)", case)
 
 
 def list_cases(cache_dir):
-    return sorted(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_img.npy")))
+    imgs = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_img.npy")))
+    labs = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_lab.npy")))
+    return sorted(list(imgs & labs))
 
 
 def split_cases(cases, val_frac=0.15, test_frac=0.15, seed=0):

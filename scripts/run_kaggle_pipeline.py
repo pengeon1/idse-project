@@ -38,18 +38,39 @@ def locate_brats_data(search_roots=None):
         for item in sorted(os.listdir("/kaggle/input")):
             print(f"  - /kaggle/input/{item}")
 
+    candidates_with_seg = []
+    candidates_all = []
+
     for root in search_roots:
         if not os.path.exists(root):
             continue
-        # Search for any patient folder with flair
         for root_dir, dirs, files in os.walk(root):
             flair_files = [f for f in files if "flair" in f.lower() and (".nii" in f.lower() or ".mha" in f.lower())]
             if flair_files:
                 parent = os.path.dirname(root_dir)
-                print(f"\n[+] Found BraTS flair sample: {os.path.join(root_dir, flair_files[0])}")
-                print(f"[+] Patient directory: {root_dir}")
-                print(f"[+] Identified dataset root: {parent}\n")
-                return parent
+                has_seg = any("seg" in f.lower() and (".nii" in f.lower() or ".mha" in f.lower()) for f in files)
+                if not has_seg:
+                    # Check sibling files or patient directory structure
+                    has_seg = any("seg" in f.lower() for f in os.listdir(root_dir))
+                if has_seg:
+                    if parent not in candidates_with_seg:
+                        candidates_with_seg.append(parent)
+                else:
+                    if parent not in candidates_all:
+                        candidates_all.append(parent)
+
+    # Prioritize candidates with ground-truth segmentation masks
+    if candidates_with_seg:
+        # Prioritize folders with 'train' in path over validation/test
+        train_cand = [c for c in candidates_with_seg if "train" in c.lower()]
+        selected = train_cand[0] if train_cand else candidates_with_seg[0]
+        print(f"\n[+] Found labeled BraTS dataset with ground-truth 'seg' masks at:")
+        print(f"    {selected}\n")
+        return selected
+
+    if candidates_all:
+        print(f"\n[!] WARNING: Found BraTS images without seg masks at: {candidates_all[0]}")
+        return candidates_all[0]
 
     raise FileNotFoundError(
         "Could not locate any BraTS NIfTI files (*flair*.nii*) in /kaggle/input.\n"
@@ -58,9 +79,16 @@ def locate_brats_data(search_roots=None):
 
 def spot_check_dataset(cache_dir, out_dir="results/spot_check"):
     os.makedirs(out_dir, exist_ok=True)
-    img_files = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))[:3]
-    print(f"\n--- Spot Checking 3 Preprocessed Cases ---")
-    fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+    all_imgs = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))
+    valid_files = [f for f in all_imgs if os.path.exists(os.path.join(cache_dir, f"{os.path.basename(f)[:-8]}_lab.npy"))]
+    if not valid_files:
+        raise FileNotFoundError(f"No valid labeled cases (with both _img.npy and _lab.npy) found in {cache_dir}")
+    
+    img_files = valid_files[:3]
+    print(f"\n--- Spot Checking {len(img_files)} Preprocessed Cases ---")
+    fig, axes = plt.subplots(len(img_files), 4, figsize=(16, 4 * len(img_files)))
+    if len(img_files) == 1:
+        axes = np.expand_dims(axes, 0)
     
     for row_idx, f in enumerate(img_files):
         cid = os.path.basename(f)[:-8]
@@ -143,12 +171,29 @@ def main():
 
     # 2. Preprocessing & Disk Quota Management
     os.makedirs(cache_dir, exist_ok=True)
-    existing_imgs = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))
     
-    # If cache has more than max_cases (e.g. from previous run that hit disk limit), prune excess to free disk space
-    if len(existing_imgs) > args.max_cases:
-        print(f"Pruning cache from {len(existing_imgs)} cases down to {args.max_cases} to free disk space...")
-        keep_ids = set([os.path.basename(p)[:-8] for p in existing_imgs[:args.max_cases]])
+    # Proactively purge any unlabelled cases (e.g. from BraTS ValidationData which has no seg masks)
+    img_cids = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_img.npy")))
+    lab_cids = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_lab.npy")))
+    unlabelled = img_cids - lab_cids
+    if unlabelled:
+        print(f"Purging {len(unlabelled)} unlabelled cases (missing ground truth masks) to free disk space...")
+        for cid in unlabelled:
+            for f in glob.glob(os.path.join(cache_dir, f"{cid}*")):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+        img_cids = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_img.npy")))
+        lab_cids = set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_lab.npy")))
+
+    valid_cases = sorted(list(img_cids & lab_cids))
+    print(f"Valid labeled cases currently in cache: {len(valid_cases)}")
+    
+    # If cache has more than max_cases, prune excess to free disk space
+    if len(valid_cases) > args.max_cases:
+        print(f"Pruning cache from {len(valid_cases)} cases down to {args.max_cases} to free disk space...")
+        keep_ids = set(valid_cases[:args.max_cases])
         for f in glob.glob(os.path.join(cache_dir, "*")):
             cid = os.path.basename(f)[:-8]
             if cid not in keep_ids:
@@ -156,14 +201,17 @@ def main():
                     os.remove(f)
                 except Exception:
                     pass
-        existing_imgs = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))
-        print(f"Retained {len(existing_imgs)} preprocessed cases in cache.")
+        valid_cases = sorted(list(
+            set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_img.npy"))) &
+            set(os.path.basename(p)[:-8] for p in glob.glob(os.path.join(cache_dir, "*_lab.npy")))
+        ))
+        print(f"Retained {len(valid_cases)} labeled cases in cache.")
 
-    if len(existing_imgs) < args.max_cases:
+    if len(valid_cases) < args.max_cases:
         run_cmd(f"python data.py preprocess --raw '{raw_dir}' --out '{cache_dir}' --max_cases {args.max_cases}",
                 desc=f"Step 1: Preprocessing raw BraTS NIfTI files to z-scored .npy cache (max {args.max_cases} cases)")
     else:
-        print(f"Cache already contains {len(existing_imgs)} preprocessed cases (>= {args.max_cases}). Skipping preprocessing.")
+        print(f"Cache already contains {len(valid_cases)} labeled cases (>= {args.max_cases}). Skipping preprocessing.")
 
     # 3. Spot check
     spot_check_dataset(cache_dir, out_dir=os.path.join(results_dir, "spot_check"))
