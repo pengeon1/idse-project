@@ -121,6 +121,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--base_fine", type=int, default=16)
     parser.add_argument("--base_coarse", type=int, default=8)
+    parser.add_argument("--max_cases", type=int, default=180, help="limit cache cases to stay within Kaggle 20GB disk limit")
     parser.add_argument("--skip_ablations", action="store_true")
     args = parser.parse_args()
 
@@ -140,12 +141,29 @@ def main():
             print("Auto-discovering BraTS dataset under /kaggle/input...")
         raw_dir = locate_brats_data()
 
-    # 2. Preprocessing
-    if not os.path.exists(cache_dir) or len(glob.glob(os.path.join(cache_dir, "*_img.npy"))) == 0:
-        run_cmd(f"python data.py preprocess --raw '{raw_dir}' --out '{cache_dir}'",
-                desc="Step 1: Preprocessing raw BraTS NIfTI files to z-scored .npy cache")
+    # 2. Preprocessing & Disk Quota Management
+    os.makedirs(cache_dir, exist_ok=True)
+    existing_imgs = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))
+    
+    # If cache has more than max_cases (e.g. from previous run that hit disk limit), prune excess to free disk space
+    if len(existing_imgs) > args.max_cases:
+        print(f"Pruning cache from {len(existing_imgs)} cases down to {args.max_cases} to free disk space...")
+        keep_ids = set([os.path.basename(p)[:-8] for p in existing_imgs[:args.max_cases]])
+        for f in glob.glob(os.path.join(cache_dir, "*")):
+            cid = os.path.basename(f)[:-8]
+            if cid not in keep_ids:
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+        existing_imgs = sorted(glob.glob(os.path.join(cache_dir, "*_img.npy")))
+        print(f"Retained {len(existing_imgs)} preprocessed cases in cache.")
+
+    if len(existing_imgs) < args.max_cases:
+        run_cmd(f"python data.py preprocess --raw '{raw_dir}' --out '{cache_dir}' --max_cases {args.max_cases}",
+                desc=f"Step 1: Preprocessing raw BraTS NIfTI files to z-scored .npy cache (max {args.max_cases} cases)")
     else:
-        print(f"Found existing preprocessed cache in {cache_dir}")
+        print(f"Cache already contains {len(existing_imgs)} preprocessed cases (>= {args.max_cases}). Skipping preprocessing.")
 
     # 3. Spot check
     spot_check_dataset(cache_dir, out_dir=os.path.join(results_dir, "spot_check"))

@@ -26,10 +26,12 @@ def _find(case_dir, case, suffix):
     return hits[0] if hits else None
 
 
-def preprocess(raw_root, out_dir):
+def preprocess(raw_root, out_dir, max_cases=None):
     import nibabel as nib
     os.makedirs(out_dir, exist_ok=True)
     cases = sorted(d for d in os.listdir(raw_root) if os.path.isdir(os.path.join(raw_root, d)))
+    if max_cases is not None:
+        cases = cases[:max_cases]
     for case in cases:
         cd = os.path.join(raw_root, case)
         chans = []
@@ -195,5 +197,6 @@ if __name__ == "__main__":
     ap.add_argument("cmd", choices=["preprocess"])
     ap.add_argument("--raw", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--max_cases", type=int, default=None, help="limit number of cases to fit disk quotas")
     a = ap.parse_args()
-    preprocess(a.raw, a.out)
+    preprocess(a.raw, a.out, max_cases=a.max_cases)
