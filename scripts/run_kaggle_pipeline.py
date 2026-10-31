@@ -31,24 +31,30 @@ def run_cmd(cmd, desc=None):
 
 def locate_brats_data(search_roots=None):
     if search_roots is None:
-        search_roots = [
-            "/kaggle/input",
-            "/kaggle/input/brats20-dataset-training-validation",
-            "/kaggle/input/brats-2021-task1",
-            "./data",
-        ]
-    print("Searching for raw BraTS dataset...")
+        search_roots = ["/kaggle/input", "./data", "."]
+    print(f"Searching for raw BraTS dataset in: {search_roots}")
+    if os.path.exists("/kaggle/input"):
+        print("Mounted folders in /kaggle/input:")
+        for item in sorted(os.listdir("/kaggle/input")):
+            print(f"  - /kaggle/input/{item}")
+
     for root in search_roots:
         if not os.path.exists(root):
             continue
-        # Look for directory containing patient folders with _flair.nii
-        matches = glob.glob(os.path.join(root, "**", "*_flair.nii*"), recursive=True)
-        if matches:
-            patient_dir = os.path.dirname(matches[0])
-            raw_root = os.path.dirname(patient_dir)
-            print(f"Found BraTS dataset at: {raw_root}")
-            return raw_root
-    raise FileNotFoundError("Could not locate BraTS dataset in search paths. Please pass --raw_dir explicitly.")
+        # Search for any patient folder with flair
+        for root_dir, dirs, files in os.walk(root):
+            flair_files = [f for f in files if "flair" in f.lower() and (".nii" in f.lower() or ".mha" in f.lower())]
+            if flair_files:
+                parent = os.path.dirname(root_dir)
+                print(f"\n[+] Found BraTS flair sample: {os.path.join(root_dir, flair_files[0])}")
+                print(f"[+] Patient directory: {root_dir}")
+                print(f"[+] Identified dataset root: {parent}\n")
+                return parent
+
+    raise FileNotFoundError(
+        "Could not locate any BraTS NIfTI files (*flair*.nii*) in /kaggle/input.\n"
+        "Please check if you added a BraTS dataset via '+ Add Input' on the top right of your Kaggle notebook!"
+    )
 
 def spot_check_dataset(cache_dir, out_dir="results/spot_check"):
     os.makedirs(out_dir, exist_ok=True)
@@ -126,7 +132,13 @@ def main():
     os.makedirs(results_dir, exist_ok=True)
 
     # 1. Locate dataset
-    raw_dir = args.raw_dir or locate_brats_data()
+    if args.raw_dir and os.path.exists(args.raw_dir):
+        raw_dir = args.raw_dir
+    else:
+        if args.raw_dir:
+            print(f"Notice: Path passed to --raw_dir ('{args.raw_dir}') does not exist.")
+            print("Auto-discovering BraTS dataset under /kaggle/input...")
+        raw_dir = locate_brats_data()
 
     # 2. Preprocessing
     if not os.path.exists(cache_dir) or len(glob.glob(os.path.join(cache_dir, "*_img.npy"))) == 0:
