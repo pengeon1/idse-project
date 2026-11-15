@@ -67,8 +67,64 @@ def largest_component(mask):
     return lab == (1 + int(np.argmax(sizes)))
 
 
+def apply_scanner_perturbation(img, shift_type):
+    """Simulate scanner domain shifts / acquisition differences:
+    - gamma_low: simulated hyper-intense scan (gamma = 0.75)
+    - gamma_high: simulated hypo-intense scan (gamma = 1.35)
+    - bias_field: spatial intensity non-uniformity (B0 inhomogeneity / RF coil gradient)
+    - noise: low SNR scanner Gaussian noise
+    """
+    if not shift_type or shift_type == "none":
+        return img
+    img = img.copy()
+    for m in range(img.shape[0]):
+        nz = img[m] != 0
+        if not nz.any():
+            continue
+        v = img[m, nz]
+        vmin, vmax = v.min(), v.max()
+        norm = (v - vmin) / (vmax - vmin + 1e-8)
+        
+        if shift_type == "gamma_low":
+            norm = np.power(norm, 0.75)
+        elif shift_type == "gamma_high":
+            norm = np.power(norm, 1.35)
+        elif shift_type == "bias_field":
+            H, W, D = img[m].shape
+            x_coord = np.linspace(-1, 1, H)[:, None, None]
+            y_coord = np.linspace(-1, 1, W)[None, :, None]
+            bias = 1.0 + 0.25 * (x_coord**2 + y_coord)
+            img[m] = np.where(nz, img[m] * bias[nz], 0.0)
+            continue
+        elif shift_type == "noise":
+            noise = np.random.normal(0, 0.15, size=v.shape)
+            img[m, nz] = v + noise
+            continue
+            
+        rescaled = norm * (vmax - vmin) + vmin
+        rescaled = (rescaled - rescaled.mean()) / (rescaled.std() + 1e-8)
+        img[m, nz] = rescaled
+    return img
+
+
+def forward_fine_crop(fine, crop, dev, use_amp=True, tta=False):
+    """Run fine model forward pass with optional test-time augmentation (axial/coronal/sagittal flips)."""
+    flips = [(), (2,), (3,), (4,)] if tta else [()]
+    probs = []
+    for f_axes in flips:
+        x_flip = torch.flip(crop, dims=f_axes) if f_axes else crop
+        x_p, csz = pad_to_multiple(x_flip, 16)
+        with torch.autocast(dev, dtype=torch.float16, enabled=use_amp):
+            p = unpad(torch.sigmoid(fine(x_p)), csz)
+        if f_axes:
+            p = torch.flip(p, dims=f_axes)
+        probs.append(p)
+    return torch.stack(probs).mean(dim=0)[0].float().cpu().numpy()
+
+
 @torch.no_grad()
-def segment(coarse, fine, img, dev, down=2, margin=12, thr=0.5, return_stage1=False, single_stage=False):
+def segment(coarse, fine, img, dev, down=2, margin=12, thr=0.5, box_thr=0.35,
+            adaptive_margin=False, tta=False, return_stage1=False, single_stage=False):
     """img: float array (4,H,W,D), already z-scored. Returns bool (3,H,W,D): WT, TC, ET."""
     x = torch.from_numpy(np.asarray(img, dtype=np.float32))[None].to(dev)
     shape = x.shape[2:]
@@ -76,9 +132,7 @@ def segment(coarse, fine, img, dev, down=2, margin=12, thr=0.5, return_stage1=Fa
 
     if single_stage:
         # Baseline A7: run FineNet directly on the full padded volume without Stage 1 coarse localization
-        crop_p, csz = pad_to_multiple(x, 16)
-        with torch.autocast(dev, dtype=torch.float16, enabled=use_amp):
-            prob = unpad(torch.sigmoid(fine(crop_p)), csz)[0].float().cpu().numpy() > thr
+        prob = forward_fine_crop(fine, x, dev, use_amp=use_amp, tta=tta) > thr
         wt, tc, et = prob
         tc &= wt
         et &= tc
@@ -90,20 +144,30 @@ def segment(coarse, fine, img, dev, down=2, margin=12, thr=0.5, return_stage1=Fa
     with torch.autocast(dev, dtype=torch.float16, enabled=use_amp):
         p = unpad(torch.sigmoid(coarse(xl)), sz)
     p = F.interpolate(p.float(), size=shape, mode="trilinear", align_corners=False)
-    wt_coarse = largest_component((p[0, 0] > thr).cpu().numpy())
-    bb = bbox_of(wt_coarse, margin=margin, min_size=64)
+    p_np = p[0, 0].cpu().numpy()
+    wt_coarse = largest_component(p_np > thr)
+
+    if adaptive_margin:
+        # Detect boundary uncertainty: check volume with p in [box_thr, thr]
+        # Infiltrative edema produces soft boundary voxels between 0.30 and 0.50
+        box_candidate = largest_component(p_np > box_thr)
+        diff_voxels = int((box_candidate & (~wt_coarse)).sum())
+        ratio = diff_voxels / (wt_coarse.sum() + 1e-5)
+        # Adaptively widen margin from 12 up to 24 voxels if boundary is diffuse
+        dyn_margin = min(24, int(margin + 12 * min(1.0, ratio * 2)))
+        bb = bbox_of(box_candidate, margin=dyn_margin, min_size=64)
+    else:
+        bb = bbox_of(wt_coarse, margin=margin, min_size=64)
 
     out = np.zeros((3,) + tuple(shape), dtype=bool)
     if bb is None:                                        # nothing found
         return (out, None, wt_coarse) if return_stage1 else out
     lo, hi = bb
 
-    # ---- stage 2: fine segmentation of the crop
+    # ---- stage 2: fine segmentation of the crop (with optional TTA)
     sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
     crop = x[(slice(None), slice(None)) + sl]
-    crop_p, csz = pad_to_multiple(crop, 16)
-    with torch.autocast(dev, dtype=torch.float16, enabled=use_amp):
-        prob = unpad(torch.sigmoid(fine(crop_p)), csz)[0].float().cpu().numpy() > thr
+    prob = forward_fine_crop(fine, crop, dev, use_amp=use_amp, tta=tta) > thr
     wt, tc, et = prob
     tc &= wt                                              # enforce ET <= TC <= WT
     et &= tc
@@ -130,6 +194,12 @@ def main():
     ap.add_argument("--margin", type=int, default=12)
     ap.add_argument("--drop_mods", default="", help="comma list of modalities to zero out, e.g. t1,t2")
     ap.add_argument("--single_stage", action="store_true", help="A7: single stage FineNet without stage 1")
+    ap.add_argument("--adaptive_margin", action="store_true", help="Uncertainty-aware adaptive margin for Stage 1")
+    ap.add_argument("--box_thr", type=float, default=0.35, help="Coarse threshold for bounding box candidate extraction")
+    ap.add_argument("--tta", action="store_true", help="Enable 4-fold test-time augmentation")
+    ap.add_argument("--shift_type", default="none", choices=["none", "gamma_low", "gamma_high", "bias_field", "noise"],
+                    help="Simulate scanner domain shift / intensity non-uniformity")
+    ap.add_argument("--all_cases", action="store_true", help="Evaluate on all cases found in cache (useful for cross-dataset transfer)")
     ap.add_argument("--out_csv", default="results.csv")
     a = ap.parse_args()
 
@@ -144,8 +214,22 @@ def main():
                        dilated_stages=dilated_stages, tf_layers=a2.get("tf_layers", 2)).to(dev)
         fine.load_state_dict(c2["model"])
         coarse = None
-    split_file = a.split_file or os.path.join(os.path.dirname(a.s2), "split.json")
-    cases = json.load(open(split_file))[a.split]
+
+    if a.all_cases:
+        cases = list_cases(a.cache)
+    else:
+        split_file = a.split_file or os.path.join(os.path.dirname(a.s2), "split.json")
+        if os.path.exists(split_file):
+            split_dict = json.load(open(split_file))
+            if a.split in split_dict:
+                cases = [c for c in split_dict[a.split] if os.path.exists(os.path.join(a.cache, f"{c}_img.npy"))]
+                if not cases:
+                    cases = list_cases(a.cache)
+            else:
+                cases = list_cases(a.cache)
+        else:
+            cases = list_cases(a.cache)
+
     drop = [MODS.index(m) for m in a.drop_mods.split(",") if m]
 
     rows = []
@@ -159,10 +243,22 @@ def main():
         for i in drop:
             img[i] = 0
 
+        # Optional scanner perturbation stress-test
+        if a.shift_type != "none":
+            img = apply_scanner_perturbation(img, a.shift_type)
+
         if dev == "cuda":
             torch.cuda.reset_peak_memory_stats()
         t0 = time.time()
-        pred, bb, wt_coarse = segment(coarse, fine, img, dev, margin=a.margin, return_stage1=True, single_stage=a.single_stage)
+        pred, bb, wt_coarse = segment(
+            coarse, fine, img, dev,
+            margin=a.margin,
+            box_thr=a.box_thr,
+            adaptive_margin=a.adaptive_margin,
+            tta=a.tta,
+            return_stage1=True,
+            single_stage=a.single_stage
+        )
         t_elapsed = time.time() - t0
         peak_mb = torch.cuda.max_memory_allocated() / 1e6 if dev == "cuda" else 0.0
 
