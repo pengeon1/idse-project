@@ -13,7 +13,7 @@
 
 ---
 
-## 📌 Architecture Overview
+## Architecture Overview
 
 A lightweight, two-stage coarse-to-fine 3D segmentation pipeline combining complementary ideas from three surveyed papers:
 1. **Zhu et al. (2024):** ResNet encoder blocks with CBAM (Convolutional Block Attention Module) skip attention and composite Dice + BCE loss.
@@ -26,7 +26,7 @@ A lightweight, two-stage coarse-to-fine 3D segmentation pipeline combining compl
 
 ---
 
-## 📊 Key Performance Results
+## Key Performance Results
 
 Evaluated on the held-out test split of BraTS 2020 ($N=27$ patients, seed 0, strict patient-wise separation):
 
@@ -47,11 +47,11 @@ Evaluated on the held-out test split of BraTS 2020 ($N=27$ patients, seed 0, str
 | **Stage 1 Detection Rate** | **100% (0 / 27 missed)** | Zero false-negative brain scans across the entire test set |
 | **S1 Box Containment** | **74.07% (20 / 27)** | 74.1% of cases have 100% of tumor fully enclosed in Stage 1 crop |
 
-> 📖 **Full Project Report:** For complete experimental details, full statistical distributions, and failure analysis, see [**REPORT.md**](REPORT.md).
+> **Full Project Report:** For complete experimental details, full statistical distributions, and failure analysis, see [**REPORT.md**](REPORT.md).
 
 ---
 
-## 🔬 Controlled Ablation Study (A0 – A7)
+## Controlled Ablation Study (A0 – A7)
 
 | ID | Configuration | WT Dice | TC Dice | ET Dice | WT HD95 | Latency | Peak VRAM | Params |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -70,7 +70,7 @@ Evaluated on the held-out test split of BraTS 2020 ($N=27$ patients, seed 0, str
 
 ---
 
-## 🖼️ Qualitative Results
+## Qualitative Results
 
 Visual segmentation outputs on held-out test patients. Color key: **Green = Peritumoral Edema (WT \ TC)**, **Yellow = Necrotic Core (TC \ ET)**, **Red = Enhancing Tumor (ET)**.
 
@@ -83,7 +83,7 @@ Visual segmentation outputs on held-out test patients. Color key: **Green = Peri
 
 ---
 
-## 📈 Training History
+## Training History
 
 | Stage 1: CoarseNet (100 Epochs) | Stage 2: FineNet A0 Full Model (150 Epochs) |
 |:---:|:---:|
@@ -91,7 +91,7 @@ Visual segmentation outputs on held-out test patients. Color key: **Green = Peri
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 idse-project/
@@ -108,6 +108,7 @@ idse-project/
 │   └── test_smoke.py         # 7 unit tests (forward passes, shapes, gradients, boundary cases)
 ├── scripts/
 │   ├── run_kaggle_pipeline.py# Master end-to-end automated runner (data, training, ablations, zipping)
+│   ├── run_advanced_eval.py  # Master evaluation engine for A (Generalization), B (Adaptive Margin), C (TTA)
 │   ├── visualize_results.py  # Generates training curves and 4-panel qualitative overlays
 │   └── make_synthetic_cache.py # Synthetic cache generator for offline dry runs
 └── results/                  # All evaluation CSVs, training curves, and qualitative PNG overlays
@@ -115,7 +116,7 @@ idse-project/
 
 ---
 
-## 🚀 Quickstart & Reproducibility
+## Quickstart & Reproducibility
 
 ### 1. Installation
 ```bash
@@ -146,7 +147,7 @@ Or open and run [**`idse-project.ipynb`**](idse-project.ipynb) directly in Kaggl
 
 ---
 
-## 📚 Citation
+## Citation
 ```bibtex
 @misc{cfseg2026,
   title={Coarse-to-Fine 3D Brain Tumor Segmentation with Attention-Dilated ResNet U-Net and Transformer Bottleneck},
