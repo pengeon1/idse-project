@@ -94,7 +94,7 @@ def apply_scanner_perturbation(img, shift_type):
             x_coord = np.linspace(-1, 1, H)[:, None, None]
             y_coord = np.linspace(-1, 1, W)[None, :, None]
             bias = 1.0 + 0.25 * (x_coord**2 + y_coord)
-            img[m] = np.where(nz, img[m] * bias[nz], 0.0)
+            img[m] = np.where(nz, img[m] * bias, 0.0)
             continue
         elif shift_type == "noise":
             noise = np.random.normal(0, 0.15, size=v.shape)

@@ -119,6 +119,10 @@ def main():
     summary_records = {}
 
     for item in eval_runs:
+        if os.path.exists(item['csv']) and os.path.getsize(item['csv']) > 0:
+            print(f"\n[+] Found existing results for {item['name']} at {item['csv']}. Skipping execution.")
+            summary_records[item['name']] = summarize_csv(item['csv'])
+            continue
         cmd = (f"python infer.py --cache '{cache_dir}' --s1 '{s1_path}' --s2 '{s2_path}' "
                f"--split {args.split} {item['flags']} --out_csv '{item['csv']}'")
         run_cmd(cmd, desc=f"{item['name']}: {item['desc']}")
