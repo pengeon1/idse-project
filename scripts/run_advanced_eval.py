@@ -134,9 +134,11 @@ def main():
 
     # Optional: Cross-Dataset Zero-Shot Transfer
     cross_raw = args.cross_raw
-    if not cross_raw and os.path.exists("/kaggle/input"):
-        # Auto-detect if a 2021 or 2023 dataset was added to /kaggle/input
-        for root_dir, dirs, files in os.walk("/kaggle/input"):
+    search_dirs = [d for d in ["/kaggle/input", "/content"] if os.path.exists(d)]
+    if not cross_raw and search_dirs:
+        # Auto-detect if a 2021 or 2023 dataset was added
+        for sdir in search_dirs:
+            for root_dir, dirs, files in os.walk(sdir):
             if ("brats2021" in root_dir.lower() or "brats2023" in root_dir.lower() or "brats-2021" in root_dir.lower()) and any("flair" in f.lower() for f in files):
                 parent = os.path.dirname(root_dir)
                 has_seg = any("seg" in f.lower() for f in files)

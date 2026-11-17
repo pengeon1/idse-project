@@ -31,7 +31,7 @@ def run_cmd(cmd, desc=None):
 
 def locate_brats_data(search_roots=None):
     if search_roots is None:
-        search_roots = ["/kaggle/input", "./data", "."]
+        search_roots = ["/kaggle/input", "/content", "./data", "."]
     print(f"Searching for raw BraTS dataset in: {search_roots}")
     if os.path.exists("/kaggle/input"):
         print("Mounted folders in /kaggle/input:")
