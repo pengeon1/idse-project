@@ -139,12 +139,12 @@ def main():
         # Auto-detect if a 2021 or 2023 dataset was added
         for sdir in search_dirs:
             for root_dir, dirs, files in os.walk(sdir):
-            if ("brats2021" in root_dir.lower() or "brats2023" in root_dir.lower() or "brats-2021" in root_dir.lower()) and any("flair" in f.lower() for f in files):
-                parent = os.path.dirname(root_dir)
-                has_seg = any("seg" in f.lower() for f in files)
-                if has_seg:
-                    cross_raw = parent
-                    break
+                if ("brats2021" in root_dir.lower() or "brats2023" in root_dir.lower() or "brats-2021" in root_dir.lower()) and any("flair" in f.lower() for f in files):
+                    parent = os.path.dirname(root_dir)
+                    has_seg = any("seg" in f.lower() for f in files)
+                    if has_seg:
+                        cross_raw = parent
+                        break
 
     if cross_raw and os.path.exists(cross_raw):
         print(f"\n[+] Found secondary cross-dataset at: {cross_raw}")
