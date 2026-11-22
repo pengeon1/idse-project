@@ -282,7 +282,7 @@ A total cohort of 180 fully labeled cases was preprocessed and cached. This sele
 \subsection{Preprocessing and Memory-Mapped Cache Pipeline}
 Medical MRI scans feature scanner-dependent arbitrary intensity scales. Our preprocessing pipeline applies the following transformations:
 \begin{enumerate}[leftmargin=*, itemsep=4pt]
-    \item \textbf{Brain-Voxel Z-Score Normalization:} For each 3D sequence $m \in \{\text{FLAIR}, \text{T1}, \text{T1ce}, \text{T2}\}$, we construct a binary intracranial brain mask $M = \{x \mid I_m(x) > 0\}$. We compute the mean $\mu_m$ and standard deviation $\sigma_m$ strictly over brain voxels, normalizing the sequence via:
+    \item \textbf{Brain-Voxel Z-Score Normalization:} For each sequence $m \in \{\text{FLAIR}, \text{T1}, \text{T1ce}, \text{T2}\}$, we construct a binary intracranial brain mask $M = \{x \mid I_m(x) > 0\}$. We compute the mean $\mu_m$ and standard deviation $\sigma_m$ strictly over brain voxels, normalizing the sequence via:
     \begin{equation}
         \hat{I}_m(x) = \begin{cases}
             \dfrac{I_m(x) - \mu_m}{\sigma_m}, & \text{if } x \in M \\
@@ -307,7 +307,7 @@ Stage 1 identifies the 3D bounding box enclosing the gross tumor volume while op
     \begin{equation}
         \mathcal{L}_{\text{coarse}} = \mathcal{L}_{\text{Dice}}(P_{\text{WT}}, Y_{\text{WT}}) + \mathcal{L}_{\text{BCE}}(P_{\text{WT}}, Y_{\text{WT}})
     \end{equation}
-    \item \textbf{Connected Component Bounding Box Extraction:} During inference, predicted coarse probabilities are thresholded at $\tau = 0.5$. We extract the 3D connected components of the binary mask, isolate the largest connected lesion, and compute its minimum and maximum spatial coordinates $[x_{\min}, x_{\max}], [y_{\min}, y_{\max}], [z_{\min}, z_{\max}]$.
+    \item \textbf{Connected Component Bounding Box Extraction:} During inference, predicted coarse probabilities are thresholded at $\tau = 0.5$. We extract the 3D connected components of the binary mask, isolate the largest connected lesion, and compute its minimum and maximum spatial coordinates: $[x_{\min}, x_{\max}]$, $[y_{\min}, y_{\max}]$, and $[z_{\min}, z_{\max}]$.
     \item \textbf{Margin Expansion and High-Border Clamping:} To prevent boundary truncation of infiltrative edema, the bounding box is expanded by an isotropic spatial margin $\Delta = 12$ voxels (mapped to 24 voxels in native resolution) with a minimum dimension constraint of $L_{\min} = 64$ voxels. Coordinates are shifted and clamped to native volume boundaries:
     \begin{equation}
         lo_a = \max(0, lo_a - \Delta), \quad hi_a = \min(D_a, hi_a + \Delta)
@@ -375,7 +375,10 @@ We develop two inference-time improvements to further boost boundary accuracy an
     \item \textbf{Uncertainty-Aware Adaptive Bounding Box Margin (Improvement B):} Fixed 12-voxel margins can truncate peripheral infiltrative edema in large or irregular tumors. The adaptive margin evaluates Stage 1 prediction probabilities along the bounding box outer perimeter. If boundary voxels exhibit uncertain tumor probabilities exceeding $\tau_{\text{edge}} = 0.35$, the margin along that axis automatically expands up to $\Delta = 24$ voxels, recovering truncated margins before Stage 2 inference.
     \item \textbf{4-Fold Test-Time Augmentation (TTA) (Improvement C):} FineNet inference evaluates four spatial orientations: original volume, axial flip ($x$-axis), coronal flip ($y$-axis), and sagittal flip ($z$-axis). Predictions are flipped back to native anatomical orientation and averaged:
     \begin{equation}
-        \bar{P} = \frac{1}{4} \left( P(\mathbf{X}) + \text{Flip}_x\big(P(\text{Flip}_x(\mathbf{X}))\big) + \text{Flip}_y\big(P(\text{Flip}_y(\mathbf{X}))\big) + \text{Flip}_z\big(P(\text{Flip}_z(\mathbf{X}))\big) \right)
+    \begin{aligned}
+        \bar{P} = \frac{1}{4} \Big( P(\mathbf{X}) &+ \text{Flip}_x\big(P(\text{Flip}_x(\mathbf{X}))\big) \\
+        &+ \text{Flip}_y\big(P(\text{Flip}_y(\mathbf{X}))\big) + \text{Flip}_z\big(P(\text{Flip}_z(\mathbf{X}))\big) \Big)
+    \end{aligned}
     \end{equation}
 \end{itemize}
 
@@ -609,6 +612,8 @@ Figure \ref{fig:qualitative_overlays} presents qualitative multi-modal segmentat
     \item \textbf{Stage 1 Truncation Failure (\texttt{BraTS20\_Training\_082}, Slice 72):} Illustrates the primary failure mode of static bounding box margins: CoarseNet truncated 19.33\% of peripheral edema infiltrating the outer cortical rim (S1 recall 80.67\%). Crucially, \textit{inside the bounding box, Stage 2 performed accurately} (TC Dice 0.9135, ET HD95 1.00 mm), but global WT Dice was capped at 0.8117. This specific failure directly motivated our Uncertainty-Aware Adaptive Margin (Improvement B), which expands margins along uncertain boundaries.
 \end{itemize}
 
+\newpage
+
 \subsection{Comparison with Survey Literature}
 Table \ref{tab:lit_comparison} compares our coarse-to-fine framework against the foundational literature surveyed in Phase 1.
 
@@ -648,7 +653,7 @@ In this project, we designed, implemented, and validated an efficient two-stage 
 Key empirical findings include:
 \begin{itemize}[leftmargin=*, itemsep=4pt]
     \item \textbf{Validation of the Coarse-to-Fine Paradigm:} Stage 1 CoarseNet achieves a 100\% tumor detection rate with 95.1\% voxel recall, localizing lesions to a $128^3$ patch. Compared to the single-stage baseline (A7), coarse-to-fine localization delivers a \textbf{+10.4\% gain in Whole Tumor Dice} (0.9127 vs. 0.8086), reduces 95\% Hausdorff distance error by \textbf{$9.2\times$} (2.85 mm vs. 26.22 mm), and decreases peak GPU memory footprint by \textbf{$3.5\times$} (883 MB vs. 3,123 MB).
-    \item \textbf{Protection Against Missing Clinical Sequences:} Modality dropout ($p=0.3$) regularizes multi-modal representations, preserving a Whole Tumor Dice of \textbf{0.8525} when FLAIR sequences are missing—a +17.20 point advantage over unregularized models (0.6805).
+    \item \textbf{Protection Against Missing Clinical Sequences:} Modality dropout ($p=0.3$) regularizes multi-modal representations, preserving a Whole Tumor Dice of \textbf{0.8525} when FLAIR sequences are missing---a +17.20 point advantage over unregularized models (0.6805).
     \item \textbf{Real-Time Clinical Edge Deployment:} The complete pipeline comprises only 9.63 million parameters and processes an entire 4-channel 3D volume in \textbf{0.39 to 0.73 seconds} while consuming only \textbf{829 to 883 MB peak GPU VRAM}, making it suitable for deployment on standard clinical workstations and consumer GPUs without specialized multi-GPU infrastructure.
     \item \textbf{Boundary Precision and Invariance:} Uncertainty-aware adaptive bounding box expansion resolves infiltrative margin clipping, reducing HD95 to 2.81 mm. The model also maintains stability across simulated scanner non-linearities, RF coil bias fields, and sensor noise.
 \end{itemize}
@@ -656,10 +661,9 @@ Key empirical findings include:
 Future extensions could explore automated reinforcement learning policies for dynamic bounding-box expansion, multi-task survival prediction from bottleneck embeddings, and federated validation across multi-center clinical cohorts.
 
 % -------------------------------------------------------------
+\section{References}
 \begingroup
 \renewcommand{\section}[2]{}
-\section{References}
-\vspace{-1.5em}
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 \endgroup
