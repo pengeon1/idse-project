@@ -393,6 +393,7 @@ Table \ref{tab:primary_results} summarizes the quantitative segmentation accurac
 \caption{Primary Segmentation Metrics on 27 Held-Out Test Patients (A0 Baseline Model)}
 \label{tab:primary_results}
 \vspace{0.2cm}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Tumor Sub-Region} & \textbf{Dice (Mean $\pm$ Std)} & \textbf{Median Dice} & \textbf{95\% HD (mm)} & \textbf{Recall} \\
@@ -401,7 +402,8 @@ Table \ref{tab:primary_results} summarizes the quantitative segmentation accurac
 \textbf{Tumor Core (TC)}    & \textbf{0.9048 $\pm$ 0.095} & 0.9349 & \textbf{2.82 $\pm$ 3.54} & 92.4\% \\
 \textbf{Enhancing Tumor (ET)} & \textbf{0.8526 $\pm$ 0.083} & 0.8663 & \textbf{1.53 $\pm$ 1.04} & 88.7\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{table}[H]
@@ -409,7 +411,8 @@ Table \ref{tab:primary_results} summarizes the quantitative segmentation accurac
 \caption{Stage 1 Coarse Diagnostics and Operational Inference Efficiency}
 \label{tab:efficiency}
 \vspace{0.2cm}
-\begin{tabular}{lcc}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lp{3.2cm}p{7.8cm}}
 \toprule
 \textbf{Metric} & \textbf{Value} & \textbf{Clinical / Engineering Implication} \\
 \midrule
@@ -420,7 +423,8 @@ End-to-End Latency & 0.388 s / scan & Real-time throughput of 2.58 scans/second 
 Peak GPU VRAM & 818.1 MB & Compatible with consumer 2 GB laptop GPUs \\
 Total Model Parameters & 9.63 M & 0.36M (CoarseNet) + 9.27M (FineNet) \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 The primary results demonstrate that our baseline achieves high overlap (WT Dice 0.9083, TC Dice 0.9048) and sub-millimeter boundary accuracy (ET HD95 1.53 mm). Importantly, CoarseNet achieved a 100\% detection rate without generating a single false-negative volume, while requiring only 818 MB peak VRAM.
@@ -440,10 +444,10 @@ To isolate the individual contribution of each component, we trained seven contr
 
 \begin{table}[H]
 \centering
-\small
 \caption{Systematic Ablation Study Results on 27 Held-Out Test Patients}
 \label{tab:ablations}
 \vspace{0.2cm}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{llccccccc}
 \toprule
 \textbf{ID} & \textbf{Configuration} & \textbf{WT Dice} & \textbf{TC Dice} & \textbf{ET Dice} & \textbf{HD95} & \textbf{Latency} & \textbf{VRAM} & \textbf{Params} \\
@@ -457,7 +461,8 @@ To isolate the individual contribution of each component, we trained seven contr
 \textbf{A6} & No Boundary Loss & 0.9069 & 0.8818 & 0.8349 & 3.16 & 0.38s & 818 MB & 9.27M \\
 \textbf{A7} & Single-Stage (No CoarseNet) & 0.8086 & 0.8027 & 0.7715 & 26.22 & 0.73s & 3,123 MB & 9.27M \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Key Findings from Ablations}
@@ -477,6 +482,7 @@ To evaluate clinical viability under incomplete scanner acquisitions, we benchma
 \caption{Robustness Evaluation Under Missing MRI Sequences (A0 vs. A5)}
 \label{tab:missing_modalities}
 \vspace{0.2cm}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{llccccc}
 \toprule
 \textbf{Clinical Scenario} & \textbf{Model} & \textbf{Available Sequences} & \textbf{WT Dice} & \textbf{TC Dice} & \textbf{ET Dice} & \textbf{HD95 (mm)} \\
@@ -493,7 +499,8 @@ To evaluate clinical viability under incomplete scanner acquisitions, we benchma
 \textbf{Missing Contrast}& \textbf{A0 (ModDrop)} & \textbf{FLAIR + T1 + T2 only} & \textbf{0.8977} & \textbf{0.6850} & \textbf{0.4670} & \textbf{2.87} \\
 (T1ce omitted)          & A5 (No ModDrop) & FLAIR + T1 + T2 only & 0.8887 & 0.5650 & 0.2753 & 3.25 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Clinical Significance of Robustness Results}
@@ -507,10 +514,10 @@ We further evaluated our advanced improvements alongside four simulated scanner 
 
 \begin{table}[H]
 \centering
-\small
 \caption{Advanced Improvements and Scanner Domain-Shift Stress Tests}
 \label{tab:advanced_results}
 \vspace{0.2cm}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccccccc}
 \toprule
 \textbf{Evaluation Scenario} & \textbf{WT Dice} & \textbf{TC Dice} & \textbf{ET Dice} & \textbf{HD95} & \textbf{S1 Rec} & \textbf{Box Cont} & \textbf{Lat} & \textbf{VRAM} \\
@@ -525,7 +532,8 @@ We further evaluated our advanced improvements alongside four simulated scanner 
 \textbf{7. Shift: RF Bias Field ($B_0$)}      & 0.9097 & 0.9027 & 0.8523 & 2.87 mm & 94.7\% & 20/27 (74.1\%) & 0.39s & 829 MB \\
 \textbf{8. Shift: Low SNR Noise ($\sigma=0.15$)} & 0.9066 & 0.9045 & 0.8519 & 2.96 mm & 94.8\% & 20/27 (74.1\%) & 0.39s & 829 MB \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Analysis of Advanced Extensions}
@@ -557,38 +565,39 @@ Figure \ref{fig:training_curves} displays the training history across Stage 1 (1
 \end{figure}
 
 \subsection{Qualitative Visual Analysis}
-Figure \ref{fig:qualitative_overlays} presents 4-panel visual overlays generated on held-out test patients. Each panel illustrates: (i) native FLAIR slice; (ii) expert Ground Truth annotation; (iii) predicted overlay on FLAIR; and (iv) predicted overlay on T1ce. Color coding reflects clinical sub-regions: \textbf{Green = Peritumoral Edema / WT}, \textbf{Yellow = Necrotic Core / TC}, and \textbf{Red = Enhancing Tumor / ET}.
+Figure \ref{fig:qualitative_overlays} presents qualitative multi-modal segmentation results on representative held-out test patients, arranged vertically in a 4$\times$1 layout to maximize anatomical detail. Each row depicts a complete patient case across four synchronized panels: (i) the native FLAIR slice; (ii) the ground-truth expert annotation; (iii) the predicted segmentation overlay on FLAIR; and (iv) the predicted segmentation overlay on contrast-enhanced T1ce. Color mapping follows the standard BraTS protocol: \textbf{Green = Peritumoral Edema / WT}, \textbf{Yellow = Necrotic Core / TC}, and \textbf{Red = Active Enhancing Tumor / ET}.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
-    \begin{minipage}{0.48\textwidth}
+    \begin{minipage}{\linewidth}
         \centering
         \IfFileExists{figures/best_BraTS20_Training_098_slice92.png}{\includegraphics[width=\linewidth]{figures/best_BraTS20_Training_098_slice92.png}}{}
-        \caption*{(a) Best Case: \texttt{BraTS20\_Training\_098} (Slice 92)\\
-        WT: \textbf{0.9764} $|$ TC: \textbf{0.9592} $|$ ET: \textbf{0.8968} $|$ HD95: 1.00 mm}
+        \caption*{(a) Best Case: \texttt{BraTS20\_Training\_098} (Slice 92) \quad$|$\quad WT: \textbf{0.9764} \quad$|$\quad TC: \textbf{0.9592} \quad$|$\quad ET: \textbf{0.8968} \quad$|$\quad 95\% HD: \textbf{1.00 mm}}
     \end{minipage}
-    \hfill
-    \begin{minipage}{0.48\textwidth}
+    \vspace{0.3cm}
+
+    \begin{minipage}{\linewidth}
         \centering
         \IfFileExists{figures/median_BraTS20_Training_006_slice91.png}{\includegraphics[width=\linewidth]{figures/median_BraTS20_Training_006_slice91.png}}{}
-        \caption*{(b) Median Case: \texttt{BraTS20\_Training\_006} (Slice 91)\\
-        WT: \textbf{0.9321} $|$ TC: \textbf{0.9280} $|$ ET: \textbf{0.7930} $|$ HD95: 3.00 mm}
+        \caption*{(b) Median Case: \texttt{BraTS20\_Training\_006} (Slice 91) \quad$|$\quad WT: \textbf{0.9321} \quad$|$\quad TC: \textbf{0.9280} \quad$|$\quad ET: \textbf{0.7930} \quad$|$\quad 95\% HD: \textbf{3.00 mm}}
     \end{minipage}
-    \\[0.3cm]
-    \begin{minipage}{0.48\textwidth}
+    \vspace{0.3cm}
+
+    \begin{minipage}{\linewidth}
         \centering
         \IfFileExists{figures/worst_BraTS20_Training_158_slice45.png}{\includegraphics[width=\linewidth]{figures/worst_BraTS20_Training_158_slice45.png}}{}
-        \caption*{(c) Infiltrative Case: \texttt{BraTS20\_Training\_158} (Slice 45)\\
-        WT: 0.6935 $|$ TC: 0.4257 $|$ ET: 0.7347 $|$ HD95: 12.08 mm}
+        \caption*{(c) Infiltrative Case: \texttt{BraTS20\_Training\_158} (Slice 45) \quad$|$\quad WT: 0.6935 \quad$|$\quad TC: 0.4257 \quad$|$\quad ET: 0.7347 \quad$|$\quad 95\% HD: 12.08 mm}
     \end{minipage}
-    \hfill
-    \begin{minipage}{0.48\textwidth}
+    \vspace{0.3cm}
+
+    \begin{minipage}{\linewidth}
         \centering
         \IfFileExists{figures/s1_failure_BraTS20_Training_082_slice72.png}{\includegraphics[width=\linewidth]{figures/s1_failure_BraTS20_Training_082_slice72.png}}{}
-        \caption*{(d) Truncation Failure: \texttt{BraTS20\_Training\_082} (Slice 72)\\
-        WT: 0.8117 $|$ TC: 0.9135 $|$ ET: 0.8228 $|$ S1 Recall: 80.67\%}
+        \caption*{(d) Stage 1 Truncation Failure: \texttt{BraTS20\_Training\_082} (Slice 72) \quad$|$\quad WT: 0.8117 \quad$|$\quad TC: 0.9135 \quad$|$\quad ET: 0.8228 \quad$|$\quad S1 Recall: 80.67\%}
     \end{minipage}
-    \caption{Multi-modal qualitative overlays across representative test cases. Sub-regions are color-coded as Green (Edema / WT), Yellow (Necrotic Core / TC), and Red (Enhancing Tumor / ET).}
+    \vspace{0.2cm}
+
+    \caption{Multi-modal qualitative overlays across four representative test cases arranged vertically ($4\times 1$). Each row displays: (i) native FLAIR; (ii) Ground Truth; (iii) predicted overlay on FLAIR; and (iv) predicted overlay on T1ce. Color encoding: \textbf{Green = Edema / WT}, \textbf{Yellow = Necrotic Core / TC}, and \textbf{Red = Enhancing Tumor / ET}.}
     \label{fig:qualitative_overlays}
 \end{figure}
 
@@ -605,10 +614,10 @@ Table \ref{tab:lit_comparison} compares our coarse-to-fine framework against the
 
 \begin{table}[H]
 \centering
-\small
 \caption{Benchmark Comparison Against Surveyed Baseline Literature}
 \label{tab:lit_comparison}
 \vspace{0.2cm}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{llcccc}
 \toprule
 \textbf{Method / Publication} & \textbf{Architectural Focus} & \textbf{WT Dice} & \textbf{TC Dice} & \textbf{ET Dice} & \textbf{Compute Footprint} \\
@@ -618,7 +627,8 @@ Table \ref{tab:lit_comparison} compares our coarse-to-fine framework against the
 \textbf{Zhang et al. (2024)} \cite{zhang2024augtransunet} & AugTransU-Net (Full 3D) & 0.8970 & $\sim 0.852$ & $\sim 0.814$ & High memory; large models \\
 \textbf{Our Pipeline (Ours)} & \textbf{2-Stage 3D Attn-Dilated + TF} & \textbf{0.9127} & \textbf{0.9071} & \textbf{0.8579} & \textbf{9.63M params, 883 MB VRAM} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Contextual Analysis and Methodological Rigor}
